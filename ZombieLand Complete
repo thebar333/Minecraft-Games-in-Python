@@ -1,0 +1,134 @@
+import mcpi.minecraft as minecraft
+import mcpi.block as block
+import random
+import time
+
+mc = minecraft.Minecraft.create()
+
+remainingLives = 3
+X1 = -50  # coordinates of the first corner
+Y = 74
+Z1 = -390
+SIZE = 20
+X2 = X1 + SIZE  # coordinates of the opposite corner depends on the SIZE constant
+Z2 = Z1 + SIZE
+### begining of Zombie class definition
+class Zombie:
+
+    # the constructor
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.colour = 13  # zombie will be green
+        mc.setBlock(self.x, self.y, self.z, block.WOOL.id, self.colour)  # build the bottom block of the zombie
+        mc.setBlock(self.x, self.y + 1, self.z, block.WOOL.id, self.colour)  # build the upper block of the zombie
+
+
+    def move(self):
+        ZOMBIE_SMELL_RANGE = 5
+        ZOMBIE_BITE_RANGE = 1
+        pos = mc.player.getTilePos()
+        diffx = pos.x - self.x
+        diffz = pos.z - self.z
+        if abs(diffx) <= ZOMBIE_BITE_RANGE and abs(diffz) <= ZOMBIE_BITE_RANGE:
+            self.bite()
+        elif abs(diffx) < ZOMBIE_SMELL_RANGE and abs(diffz) < ZOMBIE_SMELL_RANGE:
+            self.chasePlayer()
+        else:
+            self.moveRandom()
+
+    def moveRandom(self):
+        mc.setBlock(self.x, self.y, self.z, block.AIR.id)
+        mc.setBlock(self.x, self.y+1, self.z, block.AIR.id)
+        new_x = self.x+random.randint(-1,1)
+        if new_x >=X1 and new_x <= X2:
+            self.x = new_x
+        new_z = self.z+random.randint(-1,1)
+        if new_z >=Z1 and new_z <= Z2:
+            self.z = new_z
+        mc.setBlock(self.x, self.y, self.z, block.WOOL.id, self.colour)
+        mc.setBlock(self.x, self.y+1, self.z, block.WOOL.id, self.colour)
+
+    def walk(self,newx,newz):
+        cube = mc.getBlockWithData(newx, Y, newz)
+        if cube.id == block.WOOL.id:
+            return
+        mc.setBlock(self.x, self.y, self.z, block.AIR.id)
+        mc.setBlock(self.x, self.y+1, self.z, block.AIR.id)
+        if newx >= X1 and newx <= X2:
+            self.x = newx
+        if newz >= Z1 and newz <= X2:
+            self.z = newz
+        mc.setBlock(self.x, self.y, self.z, block.WOOL.id, self.colour)
+        mc.setBlock(self.x, self.y+1, self.z, block.WOOL.id, self.colour)
+
+    def chasePlayer(self):
+        new_x = self.x
+        new_z = self.z
+        pos = mc.player.getTilePos()
+        diffx = pos.x - self.x
+        diffz = pos.z - self.z
+        if diffx < 0:
+            new_x = self.x - 1
+        if diffx > 0:
+            new_x = self.x+1
+        if diffz > 0:
+            new_z = self.z+1
+        if diffz < 0:
+            new_z = self.z-1
+        self.walk(new_x,new_z)
+
+    def bite(self):
+        global remainingLives
+        remainingLives = remainingLives - 1
+        mc.postToChat("Remainging lives"+str(remainingLives))
+
+# end of Zombie class definition
+
+mc.setBlocks(X1, Y, Z1, X2, Y + 3, Z2, block.AIR.id)  # clean up the area
+mc.setBlocks(X1, Y - 1, Z1, X2, Y - 1, Z2, block.BEDROCK.id)  # build the ground
+mc.player.setTilePos(X1, Y , Z1)  # teleport the player above the zombieland
+
+def checkDiamonds():
+    global diamondsInBackpack, remainingLives
+    events = mc.events.pollBlockHits()
+    for e in events:
+        blockHit = mc.getBlockWithData(e.pos.x, e.pos.y, e.pos.z)
+        if blockHit.id == block.DIAMOND_ORE.id:
+            diamondsInBackpack = diamondsInBackpack +1
+            if diamondsInBackpack == DIAMONDS_PER_LIFE:
+                remainingLives = remainingLives+1
+                diamondsInBackpack = 0
+                mc.postToChat("You earned an addtional life. Good luck out there my friend")
+            else:
+                mc.postToChat(" You Have "+str(diamondsInBackpack)+"diamonds")
+            mc.setBlock(e.pos.x, e.pos.y, e.pos.z, block.AIR.id)
+            mc.setBlock(random.randint(X1,X2),Y+1, random.randint(Z1,Z2,),block.DIAMOND_ORE.id)
+
+
+DIAMONDS_PER_LIFE = 5
+diamondsInBackpack = 0
+iteration = 0
+def checkPlayerLocation():
+    pos = mc.player.getTilePos()
+    if pos.y != Y:
+        mc.player.setTilePos(pos.x,Y,pos.z)
+
+zombies = []
+NUMBER_OF_ZOMBIES = 5
+NEW_ZOMBIE_FREQUENCY = 5
+
+for e in range(NUMBER_OF_ZOMBIES):
+    zombie = Zombie(random.randint(X1,X2), 74, random.randint(Z1,Z2))
+    zombies.append(zombie)
+mc.setBlock(random.randint(X1,X2),Y+1, random.randint(Z1,Z2,),block.DIAMOND_ORE.id)
+while True:
+    time.sleep(1)
+    checkPlayerLocation()
+    checkDiamonds()
+    for zombie in zombies:
+        zombie.move()
+    if remainingLives < 1:
+        mc.postToChat("your ded")
+        exit()
